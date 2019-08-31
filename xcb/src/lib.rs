@@ -42,10 +42,6 @@ impl XcbConnection {
         }
     }
 
-    pub fn get_setup(&self) -> xcb_setup_t {
-        unsafe { *self.setup }
-    }
-
     pub fn get_vendor(&self) -> String {
         let length = unsafe { xcb_system::xcb_setup_vendor_length(self.setup) } as usize;
         let vendor = unsafe { xcb_system::xcb_setup_vendor(self.setup) };
