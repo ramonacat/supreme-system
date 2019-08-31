@@ -1,9 +1,15 @@
 use std::ptr;
-use xcb_system::{xcb_connect, xcb_connection_t, xcb_disconnect, xcb_connection_has_error, xcb_get_setup, xcb_setup_t};
+use xcb_system::{xcb_connect, xcb_connection_t, xcb_disconnect, xcb_connection_has_error, xcb_get_setup, xcb_setup_t, xcb_window_t};
 
 pub struct XcbConnection {
     connection: *mut xcb_connection_t,
-    setup: *const xcb_setup_t
+    setup: *const xcb_setup_t,
+    default_screen: u32
+}
+
+#[derive(Debug)]
+pub struct XcbWindow {
+    window: xcb_window_t
 }
 
 #[derive(Debug)]
@@ -14,13 +20,15 @@ pub enum XcbError {
     RequestLengthExceeded,
     DisplayParseError,
     InvalidScreen,
-    UnknownError(u32)
+    UnknownError(u32),
+    ScreenNotFound(u32)
 }
 
 impl XcbConnection {
     pub fn new() -> Result<Self, XcbError> {
         unsafe {
-            let connection = xcb_connect(ptr::null(), ptr::null_mut());
+            let mut default_screen:i32 = 0;
+            let connection = xcb_connect(ptr::null(), &mut default_screen);
 
             match xcb_connection_has_error(connection) as u32 {
                 0 => {},
@@ -37,7 +45,8 @@ impl XcbConnection {
 
             Ok(XcbConnection {
                 connection,
-                setup
+                setup,
+                default_screen: default_screen as u32
             })
         }
     }
@@ -51,6 +60,32 @@ impl XcbConnection {
         unsafe { std::ptr::copy_nonoverlapping(vendor, buf.as_mut_ptr() as *mut i8, length); };
 
         String::from_utf8(buf).unwrap()
+    }
+
+    pub fn get_root_window(&self) -> XcbWindow {
+        let screen = self.get_screen(self.default_screen).unwrap();
+        
+        XcbWindow {
+            window: (screen).root
+        }
+    }
+
+    fn get_screen(&self, screen_number:u32) -> Result<xcb_system::xcb_screen_t, XcbError> {
+        let mut iterator = unsafe { xcb_system::xcb_setup_roots_iterator(self.setup) };
+
+        for _ in 0..screen_number {
+            unsafe { xcb_system::xcb_screen_next(&mut iterator) };
+
+            if iterator.rem == 0 {
+                return Err(XcbError::ScreenNotFound(screen_number));
+            }
+        }
+
+        if iterator.data.is_null() {
+            return Err(XcbError::ScreenNotFound(screen_number));
+        }
+
+        Ok(unsafe { *iterator.data })
     }
 }
 
