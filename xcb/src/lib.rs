@@ -116,18 +116,45 @@ impl Drop for XcbConnection {
     }
 }
 
+#[derive(Copy, Clone)]
+pub enum Event {
+    NoEvent = 0,
+    KeyPress = 1,
+    KeyRelease = 2,
+    ButtonPress = 4,
+    ButtonRelease = 8,
+    EnterWindow = 16,
+    LeaveWindow = 32,
+    PointerMotion = 64,
+    PointerMotionHint = 128,
+    Button1Motion = 256,
+    Button2Motion = 512,
+    Button3Motion = 1024,
+    Button4Motion = 2048,
+    Button5Motion = 4096,
+    ButtonMotion = 8192,
+    KeymapState = 16_384,
+    EXPOSURE = 32_768,
+    VisibilityChange = 65_536,
+    StructureNotify = 131_072,
+    ResizeRedirect = 262_144,
+    SubstructureNotify = 524_288,
+    SubstructureRedirect = 1_048_576,
+    FocusChange = 2_097_152,
+    PropertyChange = 4_194_304,
+    ColorMapChange = 8_388_608,
+    OwnerGrabButton = 16_777_216,
+}
+
 impl XcbWindow<'_> {
-    pub fn enable_substructure_redirect(&self) {
-        let events = vec![
-            xcb_system::xcb_event_mask_t_XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
-            xcb_system::xcb_event_mask_t_XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
-        ];
+    pub fn set_event_mask(&self, events: Vec<Event>) {
+        let converted_events: Vec<u32> = events.iter().map(|event| *event as u32).collect();
         unsafe {
             xcb_system::xcb_change_window_attributes(
                 self.connection.get_connection(),
                 self.window,
                 xcb_system::xcb_cw_t_XCB_CW_EVENT_MASK,
-                events.as_ptr() as *const c_void,
+                converted_events.as_ptr() as *const c_void,
             );
         }
     }
