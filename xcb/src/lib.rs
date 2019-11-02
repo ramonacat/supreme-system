@@ -30,6 +30,21 @@ pub enum XcbError {
     ScreenNotFound(u32),
 }
 
+#[derive(Copy, Clone, Debug)]
+pub struct WindowHandle(u32);
+
+#[derive(Copy, Clone, Debug)]
+pub enum XcbEvent {
+    WindowCreated { window: WindowHandle },
+    WindowDestroyed { window: WindowHandle },
+    WindowConfigured { window: WindowHandle },
+    WindowMapped { window: WindowHandle },
+    WindowUnmapped { window: WindowHandle },
+    WindowConfigurationRequest { window: WindowHandle, x: i16, y: i16, width: u16, height: u16 },
+    WindowMappingRequest { window: WindowHandle },
+    Unknown
+}
+
 impl XcbConnection {
     pub fn new() -> Result<Self, XcbError> {
         unsafe {
@@ -85,8 +100,86 @@ impl XcbConnection {
         }
     }
 
+    pub fn wait_for_event(&self) -> XcbEvent {
+        let event_ptr = unsafe { xcb_system::xcb_wait_for_event(self.connection) };
+        // todo handle null result?
+        let event = unsafe { *event_ptr };
+
+        match u32::from(event.response_type & !0x80) {
+            xcb_system::XCB_CREATE_NOTIFY => {
+                let create_notify_event = unsafe { *(event_ptr as *const xcb_system::xcb_create_notify_event_t) };
+
+                XcbEvent::WindowCreated { window: WindowHandle(create_notify_event.window) }
+            }
+            xcb_system::XCB_DESTROY_NOTIFY => {
+                let destroy_notify_event = unsafe { *(event_ptr as *const xcb_system::xcb_destroy_notify_event_t) };
+
+                XcbEvent::WindowDestroyed { window: WindowHandle(destroy_notify_event.window) }
+            }
+            xcb_system::XCB_CONFIGURE_NOTIFY => {
+                let configure_notify_event = unsafe { *(event_ptr as *const xcb_system::xcb_configure_notify_event_t) };
+
+                XcbEvent::WindowConfigured { window: WindowHandle(configure_notify_event.window) }
+            }
+            xcb_system::XCB_UNMAP_NOTIFY => {
+                let unmap_notify_event = unsafe { *(event_ptr as *const xcb_system::xcb_unmap_notify_event_t) };
+
+                XcbEvent::WindowUnmapped { window: WindowHandle(unmap_notify_event.window) }
+            }
+            xcb_system::XCB_MAP_NOTIFY => {
+                let map_notify_event = unsafe { *(event_ptr as *const xcb_system::xcb_map_notify_event_t) };
+
+                XcbEvent::WindowMapped { window: WindowHandle(map_notify_event.window) }
+            }
+            xcb_system::XCB_CONFIGURE_REQUEST => {
+                let configure_request = unsafe { *(event_ptr as *const xcb_system::xcb_configure_request_event_t) };
+
+                XcbEvent::WindowConfigurationRequest {
+                    window: WindowHandle(configure_request.window),
+                    x: (configure_request.x),
+                    y: (configure_request.y),
+                    width: (configure_request.width),
+                    height: (configure_request.height)
+                }
+            }
+            xcb_system::XCB_MAP_REQUEST => {
+                let map_request = unsafe { *(event_ptr as *const xcb_system::xcb_map_request_event_t) };
+
+                XcbEvent::WindowMappingRequest { window: WindowHandle(map_request.window) }
+            }
+            _ => {
+                println!("Unknown event: {:?}", event);
+
+                XcbEvent::Unknown
+            }
+        }
+    }
+
     pub(crate) fn get_connection(&self) -> *mut xcb_connection_t {
         self.connection
+    }
+
+    pub fn configure_window(&self, window:WindowHandle, x:i16, y:i16, width:u16, height:u16) -> XcbResult<()> {
+        let values = vec![x as u32, y as u32, u32::from(width), u32::from(height)];
+        let result = unsafe { xcb_system::xcb_configure_window(
+            self.connection,
+            window.0,
+            (xcb_system::xcb_config_window_t_XCB_CONFIG_WINDOW_X
+                | xcb_system::xcb_config_window_t_XCB_CONFIG_WINDOW_Y
+                | xcb_system::xcb_config_window_t_XCB_CONFIG_WINDOW_WIDTH
+                | xcb_system::xcb_config_window_t_XCB_CONFIG_WINDOW_HEIGHT) as u16,
+            values.as_ptr() as *const c_void
+        ) };
+
+        XcbResult::new(result, &self)
+    }
+
+    pub fn map_window(&self, window:WindowHandle) -> XcbResult<()> {
+        let result = unsafe {
+            xcb_system::xcb_map_window(self.connection, window.0)
+        };
+
+        XcbResult::new(result, &self)
     }
 
     fn get_screen(&self, screen_number: u32) -> Result<xcb_system::xcb_screen_t, XcbError> {
@@ -117,7 +210,7 @@ impl Drop for XcbConnection {
 }
 
 #[derive(Copy, Clone)]
-pub enum Event {
+pub enum EventMask {
     NoEvent = 0,
     KeyPress = 1,
     KeyRelease = 2,
@@ -147,15 +240,53 @@ pub enum Event {
 }
 
 impl XcbWindow<'_> {
-    pub fn set_event_mask(&self, events: Vec<Event>) {
-        let converted_events: Vec<u32> = events.iter().map(|event| *event as u32).collect();
+    pub fn set_event_mask(&self, events: Vec<EventMask>) -> XcbResult<()> {
+        let mut mask = 0;
+        for e in events {
+            mask |= e as u32;
+        }
+
         unsafe {
-            xcb_system::xcb_change_window_attributes(
+            let cookie = xcb_system::xcb_change_window_attributes(
                 self.connection.get_connection(),
                 self.window,
                 xcb_system::xcb_cw_t_XCB_CW_EVENT_MASK,
-                converted_events.as_ptr() as *const c_void,
+                &mask as *const u32 as *const c_void,
             );
+
+            XcbResult::new(cookie, self.connection)
+        }
+    }
+}
+
+pub struct XcbResult<'a, T> {
+    cookie: xcb_system::xcb_void_cookie_t,
+    connection: &'a XcbConnection,
+    _marker: std::marker::PhantomData<T>
+}
+
+impl<'a> XcbResult<'a, ()> {
+    pub fn new(cookie:xcb_system::xcb_void_cookie_t, connection:&'a XcbConnection) -> Self {
+        Self {
+            cookie,
+            connection,
+            _marker: std::marker::PhantomData {}
+        }
+    }
+
+    pub fn get_result(&mut self) -> Result<(), XcbError> {
+        let result = unsafe {
+            xcb_system::xcb_request_check(
+                self.connection.get_connection(),
+                self.cookie
+            )
+        };
+
+        if result.is_null() {
+            Ok(())
+        } else {
+            println!("{:?}", unsafe { *result });
+            Err(XcbError::UnknownError(1234)) // fixme get the actual error here
         }
     }
 }
