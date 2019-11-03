@@ -21,14 +21,13 @@ fn main() {
                 y,
                 width,
                 height,
-            } => connection
-                .configure_window(window, x, y, width, height)
+            } => window
+                .configure(x, y, width, height)
                 .get_result()
                 .expect("Failed to configure window"),
-            XcbEvent::WindowMappingRequest { window } => connection
-                .map_window(window)
-                .get_result()
-                .expect("Failed to map window"),
+            XcbEvent::WindowMappingRequest { window } => {
+                window.map().get_result().expect("Failed to map window")
+            }
             e => println!("[ ] Got an event! {:?}", e),
         }
     }
