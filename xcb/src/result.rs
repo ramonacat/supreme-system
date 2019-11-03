@@ -1,4 +1,5 @@
 use crate::connection::Connection;
+use xcb_system::xcb_generic_error_t;
 
 #[derive(Debug)]
 pub enum Error {
@@ -12,29 +13,50 @@ pub enum Error {
     ScreenNotFound(u32),
 }
 
-pub struct XcbResult<'a, T> {
-    cookie: xcb_system::xcb_void_cookie_t,
+type XcbResultWithError<T> = (T, *mut xcb_generic_error_t);
+
+pub struct XcbResult<'a, TRawReply, TReply> {
+    awaiter: Box<dyn Fn(&'a Connection) -> XcbResultWithError<TRawReply>>,
+    converter: Box<dyn Fn(TRawReply) -> TReply>,
     connection: &'a Connection,
-    _marker: std::marker::PhantomData<T>,
 }
 
-impl<'a> XcbResult<'a, ()> {
-    pub fn new(cookie: xcb_system::xcb_void_cookie_t, connection: &'a Connection) -> Self {
+impl<'a> XcbResult<'a, (), ()> {
+    pub fn new_void(cookie: xcb_system::xcb_void_cookie_t, connection: &'a Connection) -> Self {
         Self {
-            cookie,
+            awaiter: Box::new(move |connection| {
+                ((), unsafe {
+                    xcb_system::xcb_request_check(connection.get_connection(), cookie)
+                })
+            }),
+            converter: Box::new(|result| result),
             connection,
-            _marker: std::marker::PhantomData {},
+        }
+    }
+}
+
+impl<'a, TRawReply, TReply> XcbResult<'a, TRawReply, TReply> {
+    pub fn new(
+        awaiter: Box<dyn Fn(&'a Connection) -> XcbResultWithError<TRawReply>>,
+        converter: Box<dyn Fn(TRawReply) -> TReply>,
+        connection: &'a Connection,
+    ) -> Self {
+        Self {
+            awaiter,
+            converter,
+            connection,
         }
     }
 
-    pub fn get_result(&mut self) -> Result<(), Error> {
-        let result =
-            unsafe { xcb_system::xcb_request_check(self.connection.get_connection(), self.cookie) };
+    pub fn get_result(self) -> Result<TReply, Error> {
+        let result = (self.awaiter)(self.connection);
 
-        if result.is_null() {
-            Ok(())
+        if result.1.is_null() {
+            Ok((self.converter)(result.0))
         } else {
-            Err(Error::UnknownError(unsafe { *result }.error_code.into()))
+            Err(Error::UnknownError(
+                unsafe { *(result.1) }.error_code.into(),
+            ))
         }
     }
 }

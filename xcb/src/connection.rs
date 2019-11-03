@@ -1,6 +1,7 @@
 use crate::event::Event;
 use crate::result::Error;
 use crate::window::WindowHandle;
+use crate::Rectangle;
 use xcb_system::{
     xcb_connect, xcb_connection_has_error, xcb_connection_t, xcb_disconnect, xcb_get_setup,
     xcb_setup_t,
@@ -65,6 +66,10 @@ impl Connection {
         WindowHandle::new(screen.root, &self)
     }
 
+    pub(crate) fn get_root_visual(&self) -> xcb_system::xcb_visualid_t {
+        self.get_screen(self.default_screen).unwrap().root_visual
+    }
+
     pub fn wait_for_event(&self) -> Event {
         let event_ptr = unsafe { xcb_system::xcb_wait_for_event(self.connection) };
         // todo handle null result?
@@ -117,10 +122,12 @@ impl Connection {
 
                 Event::WindowConfigurationRequest {
                     window: WindowHandle::new(configure_request.window, &self),
-                    x: (configure_request.x),
-                    y: (configure_request.y),
-                    width: (configure_request.width),
-                    height: (configure_request.height),
+                    rectangle: Rectangle {
+                        x: (configure_request.x),
+                        y: (configure_request.y),
+                        width: (configure_request.width),
+                        height: (configure_request.height),
+                    },
                 }
             }
             xcb_system::XCB_MAP_REQUEST => {
@@ -129,6 +136,14 @@ impl Connection {
 
                 Event::WindowMappingRequest {
                     window: WindowHandle::new(map_request.window, &self),
+                }
+            }
+            xcb_system::XCB_REPARENT_NOTIFY => {
+                let reparent =
+                    unsafe { *(event_ptr as *const xcb_system::xcb_reparent_notify_event_t) };
+
+                Event::WindowReparented {
+                    window: WindowHandle::new(reparent.window, &self),
                 }
             }
             _ => {

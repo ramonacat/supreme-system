@@ -1,4 +1,5 @@
 use crate::window::WindowHandle;
+use crate::Rectangle;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Event<'a> {
@@ -19,12 +20,12 @@ pub enum Event<'a> {
     },
     WindowConfigurationRequest {
         window: WindowHandle<'a>,
-        x: i16,
-        y: i16,
-        width: u16,
-        height: u16,
+        rectangle: Rectangle,
     },
     WindowMappingRequest {
+        window: WindowHandle<'a>,
+    },
+    WindowReparented {
         window: WindowHandle<'a>,
     },
     Unknown,
