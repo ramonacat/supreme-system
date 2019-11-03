@@ -1,7 +1,7 @@
-use xcb::{EventMask, XcbEvent};
+use xcb::{Event, EventMask};
 
 fn main() {
-    let connection = xcb::XcbConnection::new().unwrap();
+    let connection = xcb::Connection::new().unwrap();
     let root_window = connection.get_root_window();
     root_window
         .set_event_mask(vec![EventMask::SubstructureNotify, EventMask::SubstructureRedirect])
@@ -15,7 +15,7 @@ fn main() {
         let event = connection.wait_for_event();
 
         match event {
-            XcbEvent::WindowConfigurationRequest {
+            Event::WindowConfigurationRequest {
                 window,
                 x,
                 y,
@@ -25,7 +25,7 @@ fn main() {
                 .configure(x, y, width, height)
                 .get_result()
                 .expect("Failed to configure window"),
-            XcbEvent::WindowMappingRequest { window } => {
+            Event::WindowMappingRequest { window } => {
                 window.map().get_result().expect("Failed to map window")
             }
             e => println!("[ ] Got an event! {:?}", e),

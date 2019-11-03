@@ -6,20 +6,20 @@ use xcb_system::{
 };
 
 #[derive(Debug)]
-pub struct XcbConnection {
+pub struct Connection {
     connection: *mut xcb_connection_t,
     setup: *const xcb_setup_t,
     default_screen: u32,
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct XcbWindow<'a> {
-    connection: &'a XcbConnection,
-    window: xcb_window_t,
+pub struct WindowHandle<'a> {
+    connection: &'a Connection,
+    handle: xcb_window_t,
 }
 
 #[derive(Debug)]
-pub enum XcbError {
+pub enum Error {
     ConnectionFailed,
     UnsupportedExtension,
     InsufficientMemory,
@@ -31,43 +31,43 @@ pub enum XcbError {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum XcbEvent<'a> {
-    WindowCreated { window: XcbWindow<'a> },
-    WindowDestroyed { window: XcbWindow<'a> },
-    WindowConfigured { window: XcbWindow<'a> },
-    WindowMapped { window: XcbWindow<'a> },
-    WindowUnmapped { window: XcbWindow<'a> },
-    WindowConfigurationRequest { window: XcbWindow<'a>, x: i16, y: i16, width: u16, height: u16 },
-    WindowMappingRequest { window: XcbWindow<'a> },
+pub enum Event<'a> {
+    WindowCreated { window: WindowHandle<'a> },
+    WindowDestroyed { window: WindowHandle<'a> },
+    WindowConfigured { window: WindowHandle<'a> },
+    WindowMapped { window: WindowHandle<'a> },
+    WindowUnmapped { window: WindowHandle<'a> },
+    WindowConfigurationRequest { window: WindowHandle<'a>, x: i16, y: i16, width: u16, height: u16 },
+    WindowMappingRequest { window: WindowHandle<'a> },
     Unknown
 }
 
-impl XcbConnection {
-    pub fn new() -> Result<Self, XcbError> {
+impl Connection {
+    pub fn new() -> Result<Self, Error> {
         unsafe {
             let mut default_screen: i32 = 0;
             let connection = xcb_connect(ptr::null(), &mut default_screen);
 
             match xcb_connection_has_error(connection) as u32 {
                 0 => {}
-                xcb_system::XCB_CONN_ERROR => return Err(XcbError::ConnectionFailed),
+                xcb_system::XCB_CONN_ERROR => return Err(Error::ConnectionFailed),
                 xcb_system::XCB_CONN_CLOSED_EXT_NOTSUPPORTED => {
-                    return Err(XcbError::UnsupportedExtension)
+                    return Err(Error::UnsupportedExtension)
                 }
                 xcb_system::XCB_CONN_CLOSED_MEM_INSUFFICIENT => {
-                    return Err(XcbError::InsufficientMemory)
+                    return Err(Error::InsufficientMemory)
                 }
                 xcb_system::XCB_CONN_CLOSED_REQ_LEN_EXCEED => {
-                    return Err(XcbError::RequestLengthExceeded)
+                    return Err(Error::RequestLengthExceeded)
                 }
-                xcb_system::XCB_CONN_CLOSED_PARSE_ERR => return Err(XcbError::DisplayParseError),
-                xcb_system::XCB_CONN_CLOSED_INVALID_SCREEN => return Err(XcbError::InvalidScreen),
-                error => return Err(XcbError::UnknownError(error)),
+                xcb_system::XCB_CONN_CLOSED_PARSE_ERR => return Err(Error::DisplayParseError),
+                xcb_system::XCB_CONN_CLOSED_INVALID_SCREEN => return Err(Error::InvalidScreen),
+                error => return Err(Error::UnknownError(error)),
             }
 
             let setup = xcb_get_setup(connection);
 
-            Ok(XcbConnection {
+            Ok(Connection {
                 connection,
                 setup,
                 default_screen: default_screen as u32,
@@ -88,13 +88,13 @@ impl XcbConnection {
         String::from_utf8(buf).unwrap()
     }
 
-    pub fn get_root_window(&self) -> XcbWindow {
+    pub fn get_root_window(&self) -> WindowHandle {
         let screen = self.get_screen(self.default_screen).unwrap();
 
-        XcbWindow::new(screen.root, &self)
+        WindowHandle::new(screen.root, &self)
     }
 
-    pub fn wait_for_event(&self) -> XcbEvent {
+    pub fn wait_for_event(&self) -> Event {
         let event_ptr = unsafe { xcb_system::xcb_wait_for_event(self.connection) };
         // todo handle null result?
         let event = unsafe { *event_ptr };
@@ -103,33 +103,33 @@ impl XcbConnection {
             xcb_system::XCB_CREATE_NOTIFY => {
                 let create_notify_event = unsafe { *(event_ptr as *const xcb_system::xcb_create_notify_event_t) };
 
-                XcbEvent::WindowCreated { window: XcbWindow::new(create_notify_event.window, &self) }
+                Event::WindowCreated { window: WindowHandle::new(create_notify_event.window, &self) }
             }
             xcb_system::XCB_DESTROY_NOTIFY => {
                 let destroy_notify_event = unsafe { *(event_ptr as *const xcb_system::xcb_destroy_notify_event_t) };
 
-                XcbEvent::WindowDestroyed { window: XcbWindow::new(destroy_notify_event.window, &self) }
+                Event::WindowDestroyed { window: WindowHandle::new(destroy_notify_event.window, &self) }
             }
             xcb_system::XCB_CONFIGURE_NOTIFY => {
                 let configure_notify_event = unsafe { *(event_ptr as *const xcb_system::xcb_configure_notify_event_t) };
 
-                XcbEvent::WindowConfigured { window: XcbWindow::new(configure_notify_event.window, &self) }
+                Event::WindowConfigured { window: WindowHandle::new(configure_notify_event.window, &self) }
             }
             xcb_system::XCB_UNMAP_NOTIFY => {
                 let unmap_notify_event = unsafe { *(event_ptr as *const xcb_system::xcb_unmap_notify_event_t) };
 
-                XcbEvent::WindowUnmapped { window: XcbWindow::new(unmap_notify_event.window, &self) }
+                Event::WindowUnmapped { window: WindowHandle::new(unmap_notify_event.window, &self) }
             }
             xcb_system::XCB_MAP_NOTIFY => {
                 let map_notify_event = unsafe { *(event_ptr as *const xcb_system::xcb_map_notify_event_t) };
 
-                XcbEvent::WindowMapped { window: XcbWindow::new(map_notify_event.window, &self) }
+                Event::WindowMapped { window: WindowHandle::new(map_notify_event.window, &self) }
             }
             xcb_system::XCB_CONFIGURE_REQUEST => {
                 let configure_request = unsafe { *(event_ptr as *const xcb_system::xcb_configure_request_event_t) };
 
-                XcbEvent::WindowConfigurationRequest {
-                    window: XcbWindow::new(configure_request.window, &self),
+                Event::WindowConfigurationRequest {
+                    window: WindowHandle::new(configure_request.window, &self),
                     x: (configure_request.x),
                     y: (configure_request.y),
                     width: (configure_request.width),
@@ -139,12 +139,12 @@ impl XcbConnection {
             xcb_system::XCB_MAP_REQUEST => {
                 let map_request = unsafe { *(event_ptr as *const xcb_system::xcb_map_request_event_t) };
 
-                XcbEvent::WindowMappingRequest { window: XcbWindow::new(map_request.window, &self) }
+                Event::WindowMappingRequest { window: WindowHandle::new(map_request.window, &self) }
             }
             _ => {
                 println!("Unknown event: {:?}", event);
 
-                XcbEvent::Unknown
+                Event::Unknown
             }
         }
     }
@@ -153,26 +153,26 @@ impl XcbConnection {
         self.connection
     }
 
-    fn get_screen(&self, screen_number: u32) -> Result<xcb_system::xcb_screen_t, XcbError> {
+    fn get_screen(&self, screen_number: u32) -> Result<xcb_system::xcb_screen_t, Error> {
         let mut iterator = unsafe { xcb_system::xcb_setup_roots_iterator(self.setup) };
 
         for _ in 0..screen_number {
             unsafe { xcb_system::xcb_screen_next(&mut iterator) };
 
             if iterator.rem == 0 {
-                return Err(XcbError::ScreenNotFound(screen_number));
+                return Err(Error::ScreenNotFound(screen_number));
             }
         }
 
         if iterator.data.is_null() {
-            return Err(XcbError::ScreenNotFound(screen_number));
+            return Err(Error::ScreenNotFound(screen_number));
         }
 
         Ok(unsafe { *iterator.data })
     }
 }
 
-impl Drop for XcbConnection {
+impl Drop for Connection {
     fn drop(&mut self) {
         unsafe {
             xcb_disconnect(self.connection);
@@ -198,7 +198,7 @@ pub enum EventMask {
     Button5Motion = 4096,
     ButtonMotion = 8192,
     KeymapState = 16_384,
-    EXPOSURE = 32_768,
+    Exposure = 32_768,
     VisibilityChange = 65_536,
     StructureNotify = 131_072,
     ResizeRedirect = 262_144,
@@ -210,11 +210,11 @@ pub enum EventMask {
     OwnerGrabButton = 16_777_216,
 }
 
-impl<'a> XcbWindow<'a> {
-    pub fn new(handle: u32, connection:&'a XcbConnection) -> Self
+impl<'a> WindowHandle<'a> {
+    pub fn new(handle: u32, connection:&'a Connection) -> Self
     {
         Self {
-            window: handle,
+            handle,
             connection
         }
     }
@@ -228,7 +228,7 @@ impl<'a> XcbWindow<'a> {
         unsafe {
             let cookie = xcb_system::xcb_change_window_attributes(
                 self.connection.get_connection(),
-                self.window,
+                self.handle,
                 xcb_system::xcb_cw_t_XCB_CW_EVENT_MASK,
                 &mask as *const u32 as *const c_void,
             );
@@ -239,7 +239,7 @@ impl<'a> XcbWindow<'a> {
 
     pub fn map(&self) -> XcbResult<()> {
         let result = unsafe {
-            xcb_system::xcb_map_window(self.connection.get_connection(), self.window)
+            xcb_system::xcb_map_window(self.connection.get_connection(), self.handle)
         };
 
         XcbResult::new(result, self.connection)
@@ -249,7 +249,7 @@ impl<'a> XcbWindow<'a> {
         let values = vec![x as u32, y as u32, u32::from(width), u32::from(height)];
         let result = unsafe { xcb_system::xcb_configure_window(
             self.connection.get_connection(),
-            self.window,
+            self.handle,
             (xcb_system::xcb_config_window_t_XCB_CONFIG_WINDOW_X
                 | xcb_system::xcb_config_window_t_XCB_CONFIG_WINDOW_Y
                 | xcb_system::xcb_config_window_t_XCB_CONFIG_WINDOW_WIDTH
@@ -263,12 +263,12 @@ impl<'a> XcbWindow<'a> {
 
 pub struct XcbResult<'a, T> {
     cookie: xcb_system::xcb_void_cookie_t,
-    connection: &'a XcbConnection,
+    connection: &'a Connection,
     _marker: std::marker::PhantomData<T>
 }
 
 impl<'a> XcbResult<'a, ()> {
-    pub fn new(cookie:xcb_system::xcb_void_cookie_t, connection:&'a XcbConnection) -> Self {
+    pub fn new(cookie:xcb_system::xcb_void_cookie_t, connection:&'a Connection) -> Self {
         Self {
             cookie,
             connection,
@@ -276,7 +276,7 @@ impl<'a> XcbResult<'a, ()> {
         }
     }
 
-    pub fn get_result(&mut self) -> Result<(), XcbError> {
+    pub fn get_result(&mut self) -> Result<(), Error> {
         let result = unsafe {
             xcb_system::xcb_request_check(
                 self.connection.get_connection(),
@@ -287,8 +287,7 @@ impl<'a> XcbResult<'a, ()> {
         if result.is_null() {
             Ok(())
         } else {
-            println!("{:?}", unsafe { *result });
-            Err(XcbError::UnknownError(1234)) // fixme get the actual error here
+            Err(Error::UnknownError(unsafe { *result }.error_code.into()))
         }
     }
 }
