@@ -1,7 +1,7 @@
-use xcb::{Event, EventMask};
+use xcb::event::{Event, EventMask};
 
 fn main() {
-    let connection = xcb::Connection::new().unwrap();
+    let connection = xcb::connection::Connection::new().unwrap();
     let root_window = connection.get_root_window();
     root_window
         .set_event_mask(vec![EventMask::SubstructureNotify, EventMask::SubstructureRedirect])
