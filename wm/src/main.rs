@@ -6,7 +6,10 @@ fn main() {
     let connection = xcb::connection::Connection::new().unwrap();
     let root_window = connection.get_root_window();
     root_window
-        .set_event_mask(vec![EventMask::SubstructureNotify, EventMask::SubstructureRedirect])
+        .set_event_mask(vec![
+            EventMask::SubstructureNotify,
+            EventMask::SubstructureRedirect
+        ])
         .get_result()
         .expect("Failed to get SubstructureNotify and SubstructureRedirect event masks. Is another WM already running?");
 
@@ -44,7 +47,7 @@ fn main() {
                 new_parent
                     .set_event_mask(vec![
                         EventMask::SubstructureNotify,
-                        EventMask::SubstructureRedirect,
+                        EventMask::SubstructureRedirect
                     ])
                     .get_result()
                     .expect("Failed to set event mask during reparenting");

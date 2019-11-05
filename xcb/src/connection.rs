@@ -146,6 +146,15 @@ impl Connection {
                     window: WindowHandle::new(reparent.window, &self),
                 }
             }
+            xcb_system::XCB_MOTION_NOTIFY => {
+                let motion_notify = unsafe { *(event_ptr as *const xcb_system::xcb_motion_notify_event_t) };
+
+                Event::MotionNotify {
+                    window: WindowHandle::new(motion_notify.event, &self),
+                    x: motion_notify.root_x,
+                    y: motion_notify.root_y
+                }
+            }
             _ => {
                 println!("Unknown event: {:?}", event);
 

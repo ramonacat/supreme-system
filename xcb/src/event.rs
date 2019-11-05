@@ -28,6 +28,7 @@ pub enum Event<'a> {
     WindowReparented {
         window: WindowHandle<'a>,
     },
+    MotionNotify { window: WindowHandle<'a>, x:i16, y:i16 },
     Unknown,
 }
 
