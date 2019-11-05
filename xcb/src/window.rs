@@ -4,7 +4,7 @@ use crate::result::XcbResult;
 use crate::Rectangle;
 use std::ffi::c_void;
 use xcb_system::{
-    xcb_change_window_attributes, xcb_config_window_t_XCB_CONFIG_WINDOW_HEIGHT,
+    xcb_change_window_attributes_checked, xcb_config_window_t_XCB_CONFIG_WINDOW_HEIGHT,
     xcb_config_window_t_XCB_CONFIG_WINDOW_WIDTH, xcb_config_window_t_XCB_CONFIG_WINDOW_X,
     xcb_config_window_t_XCB_CONFIG_WINDOW_Y, xcb_configure_window, xcb_cw_t_XCB_CW_EVENT_MASK,
     xcb_generic_error_t, xcb_get_geometry_reply_t, xcb_get_window_attributes_reply_t,
@@ -134,7 +134,7 @@ impl Window for WindowHandle<'_> {
         }
 
         unsafe {
-            let cookie = xcb_change_window_attributes(
+            let cookie = xcb_change_window_attributes_checked(
                 self.connection.get_connection(),
                 self.handle,
                 xcb_cw_t_XCB_CW_EVENT_MASK,

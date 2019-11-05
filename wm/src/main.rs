@@ -47,7 +47,7 @@ fn main() {
                 new_parent
                     .set_event_mask(vec![
                         EventMask::SubstructureNotify,
-                        EventMask::SubstructureRedirect
+                        EventMask::SubstructureRedirect,
                     ])
                     .get_result()
                     .expect("Failed to set event mask during reparenting");
