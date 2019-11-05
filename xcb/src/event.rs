@@ -47,6 +47,11 @@ pub enum Event<'a> {
         child_window: Option<WindowHandle<'a>>,
         button: MouseButton,
     },
+    ButtonReleased {
+        root_window: WindowHandle<'a>,
+        child_window: Option<WindowHandle<'a>>,
+        button: MouseButton,
+    },
     Unknown,
 }
 

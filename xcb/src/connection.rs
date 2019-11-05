@@ -1,6 +1,6 @@
 use crate::event::{Event, MouseButton};
-use crate::result::Error;
-use crate::window::WindowHandle;
+use crate::result::{Error, XcbResult};
+use crate::window::{Window, WindowHandle};
 use crate::Rectangle;
 use xcb_system::{
     xcb_connect, xcb_connection_has_error, xcb_connection_t, xcb_disconnect, xcb_get_setup,
@@ -154,6 +154,8 @@ impl Connection {
                 let motion_notify =
                     unsafe { *(event_ptr as *const xcb_system::xcb_motion_notify_event_t) };
 
+                println!("Motion notify: {:?}", motion_notify);
+
                 Event::MotionNotify {
                     window: WindowHandle::new(motion_notify.event, &self),
                     x: motion_notify.root_x,
@@ -181,12 +183,77 @@ impl Connection {
                     },
                 }
             }
+            xcb_system::XCB_BUTTON_RELEASE => {
+                let button_release =
+                    unsafe { *(event_ptr as *const xcb_system::xcb_button_release_event_t) };
+
+                Event::ButtonReleased {
+                    root_window: WindowHandle::new(button_release.root, &self),
+                    child_window: if button_release.child == 0 {
+                        None
+                    } else {
+                        Some(WindowHandle::new(button_release.child, &self))
+                    },
+                    button: match button_release.detail {
+                        1 => MouseButton::Left,
+                        2 => MouseButton::Middle,
+                        3 => MouseButton::Right,
+                        4 => MouseButton::ScrollUp,
+                        5 => MouseButton::ScrollDown,
+                        _ => panic!("Unknown mouse button {}", button_release.detail),
+                    },
+                }
+            }
             _ => {
                 println!("Unknown event: {:?}", event);
 
                 Event::Unknown
             }
         }
+    }
+
+    pub fn grab_pointer(&self) -> XcbResult<xcb_system::xcb_grab_pointer_reply_t, bool> {
+        let cookie = unsafe {
+            xcb_system::xcb_grab_pointer(
+                self.connection,
+                0,
+                self.get_root_window().unwrap().id(),
+                64 | 8, // todo this is pointer move | button release, use the EventMask enum instead
+                xcb_system::xcb_grab_mode_t_XCB_GRAB_MODE_ASYNC as u8,
+                xcb_system::xcb_grab_mode_t_XCB_GRAB_MODE_ASYNC as u8,
+                xcb_system::XCB_NONE,
+                xcb_system::XCB_NONE,
+                xcb_system::XCB_CURRENT_TIME,
+            )
+        };
+
+        XcbResult::new(
+            Box::new(move |connection: &Connection| {
+                let mut error: *mut xcb_system::xcb_generic_error_t = std::ptr::null_mut();
+
+                let reply = unsafe {
+                    *xcb_system::xcb_grab_pointer_reply(
+                        connection.get_connection(),
+                        cookie,
+                        &mut error,
+                    )
+                };
+
+                (reply, error)
+            }),
+            Box::new(|reply| {
+                reply.status == xcb_system::xcb_grab_status_t_XCB_GRAB_STATUS_SUCCESS as u8
+            }),
+            &self,
+        )
+    }
+
+    pub fn ungrab_pointer(&self) -> XcbResult<(), ()> {
+        let cookie = unsafe {
+            xcb_system::xcb_ungrab_pointer_checked(self.connection, xcb_system::XCB_CURRENT_TIME)
+        };
+
+        XcbResult::new_void(cookie, &self)
     }
 
     pub(crate) fn get_connection(&self) -> *mut xcb_connection_t {

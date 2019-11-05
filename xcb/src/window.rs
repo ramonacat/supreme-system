@@ -38,6 +38,7 @@ pub trait Window {
     fn id(&self) -> u32;
 }
 
+#[derive(Debug)]
 pub struct OwnedWindow<'a> {
     handle: WindowHandle<'a>,
 }
