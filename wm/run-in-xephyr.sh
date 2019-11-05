@@ -1,5 +1,5 @@
 #!/bin/bash
-Xephyr -br :1 &
+Xephyr -br :1 +xinerama -screen 800x600 -screen 800x600 &
 sleep 1
 DISPLAY=:1 cargo run &
 sleep 1
