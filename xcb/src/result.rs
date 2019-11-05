@@ -1,4 +1,5 @@
 use crate::connection::Connection;
+use std::string::FromUtf8Error;
 use xcb_system::xcb_generic_error_t;
 
 #[derive(Debug)]
@@ -11,6 +12,13 @@ pub enum Error {
     InvalidScreen,
     UnknownError(u32),
     ScreenNotFound(u32),
+    FromUtf8Error(FromUtf8Error),
+}
+
+impl From<FromUtf8Error> for Error {
+    fn from(original_error: FromUtf8Error) -> Self {
+        Error::FromUtf8Error(original_error)
+    }
 }
 
 type XcbResultWithError<T> = (T, *mut xcb_generic_error_t);

@@ -1,4 +1,4 @@
-use crate::event::Event;
+use crate::event::{Event, MouseButton};
 use crate::result::Error;
 use crate::window::WindowHandle;
 use crate::Rectangle;
@@ -47,7 +47,7 @@ impl Connection {
         }
     }
 
-    pub fn get_vendor(&self) -> String {
+    pub fn get_vendor(&self) -> Result<String, Error> {
         let length = unsafe { xcb_system::xcb_setup_vendor_length(self.setup) } as usize;
         let vendor = unsafe { xcb_system::xcb_setup_vendor(self.setup) };
 
@@ -57,22 +57,26 @@ impl Connection {
             std::ptr::copy_nonoverlapping(vendor, buf.as_mut_ptr() as *mut i8, length);
         };
 
-        String::from_utf8(buf).unwrap()
+        Ok(String::from_utf8(buf)?)
     }
 
-    pub fn get_root_window(&self) -> WindowHandle {
-        let screen = self.get_screen(self.default_screen).unwrap();
+    pub fn get_root_window(&self) -> Result<WindowHandle, Error> {
+        let screen = self.get_screen(self.default_screen)?;
 
-        WindowHandle::new(screen.root, &self)
+        Ok(WindowHandle::new(screen.root, &self))
     }
 
-    pub(crate) fn get_root_visual(&self) -> xcb_system::xcb_visualid_t {
-        self.get_screen(self.default_screen).unwrap().root_visual
+    pub(crate) fn get_root_visual(&self) -> Result<xcb_system::xcb_visualid_t, Error> {
+        Ok(self.get_screen(self.default_screen)?.root_visual)
     }
 
     pub fn wait_for_event(&self) -> Event {
         let event_ptr = unsafe { xcb_system::xcb_wait_for_event(self.connection) };
-        // todo handle null result?
+
+        if event_ptr.is_null() {
+            panic!("failed to wait for event");
+        }
+
         let event = unsafe { *event_ptr };
 
         match u32::from(event.response_type & !0x80) {
@@ -154,6 +158,27 @@ impl Connection {
                     window: WindowHandle::new(motion_notify.event, &self),
                     x: motion_notify.root_x,
                     y: motion_notify.root_y,
+                }
+            }
+            xcb_system::XCB_BUTTON_PRESS => {
+                let button_press =
+                    unsafe { *(event_ptr as *const xcb_system::xcb_button_press_event_t) };
+
+                Event::ButtonPressed {
+                    root_window: WindowHandle::new(button_press.root, &self),
+                    child_window: if button_press.child == 0 {
+                        None
+                    } else {
+                        Some(WindowHandle::new(button_press.child, &self))
+                    },
+                    button: match button_press.detail {
+                        1 => MouseButton::Left,
+                        2 => MouseButton::Middle,
+                        3 => MouseButton::Right,
+                        4 => MouseButton::ScrollUp,
+                        5 => MouseButton::ScrollDown,
+                        _ => panic!("Unknown mouse button {}", button_press.detail),
+                    },
                 }
             }
             _ => {

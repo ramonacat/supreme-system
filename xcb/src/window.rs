@@ -1,6 +1,6 @@
 use crate::connection::Connection;
 use crate::event::EventMask;
-use crate::result::XcbResult;
+use crate::result::{Error, XcbResult};
 use crate::Rectangle;
 use std::ffi::c_void;
 use xcb_system::{
@@ -43,29 +43,29 @@ pub struct OwnedWindow<'a> {
 }
 
 impl<'a> OwnedWindow<'a> {
-    pub fn new(connection: &'a Connection, rectangle: Rectangle) -> Self {
+    pub fn new(connection: &'a Connection, rectangle: Rectangle) -> Result<Self, Error> {
         let handle = unsafe { xcb_system::xcb_generate_id(connection.get_connection()) };
         unsafe {
             xcb_system::xcb_create_window(
                 connection.get_connection(),
                 xcb_system::XCB_COPY_FROM_PARENT as u8,
                 handle,
-                connection.get_root_window().handle,
+                connection.get_root_window()?.handle,
                 rectangle.x,
                 rectangle.y,
                 rectangle.width,
                 rectangle.height,
                 0,
                 xcb_system::xcb_window_class_t_XCB_WINDOW_CLASS_INPUT_OUTPUT as u16,
-                connection.get_root_visual(),
+                connection.get_root_visual()?,
                 0,
                 std::ptr::null(),
             )
         };
 
-        Self {
+        Ok(Self {
             handle: WindowHandle::new(handle, connection),
-        }
+        })
     }
 }
 

@@ -2,6 +2,15 @@ use crate::window::WindowHandle;
 use crate::Rectangle;
 
 #[derive(Copy, Clone, Debug)]
+pub enum MouseButton {
+    Left = 1,
+    Middle = 2,
+    Right = 3,
+    ScrollUp = 4,
+    ScrollDown = 5,
+}
+
+#[derive(Copy, Clone, Debug)]
 pub enum Event<'a> {
     WindowCreated {
         window: WindowHandle<'a>,
@@ -32,6 +41,11 @@ pub enum Event<'a> {
         window: WindowHandle<'a>,
         x: i16,
         y: i16,
+    },
+    ButtonPressed {
+        root_window: WindowHandle<'a>,
+        child_window: Option<WindowHandle<'a>>,
+        button: MouseButton,
     },
     Unknown,
 }

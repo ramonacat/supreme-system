@@ -4,16 +4,17 @@ use xcb::Rectangle;
 
 fn main() {
     let connection = xcb::connection::Connection::new().unwrap();
-    let root_window = connection.get_root_window();
+    let root_window = connection.get_root_window().unwrap();
     root_window
         .set_event_mask(vec![
             EventMask::SubstructureNotify,
-            EventMask::SubstructureRedirect
+            EventMask::SubstructureRedirect,
+            EventMask::ButtonPress
         ])
         .get_result()
         .expect("Failed to get SubstructureNotify and SubstructureRedirect event masks. Is another WM already running?");
 
-    println!("Vendor: {}", connection.get_vendor());
+    println!("Vendor: {}", connection.get_vendor().unwrap());
     println!("Window: {:?}", root_window);
 
     let mut windows = vec![];
@@ -40,7 +41,7 @@ fn main() {
                         width: geometry.rectangle.width,
                         height: geometry.rectangle.height + 30,
                     },
-                );
+                ).unwrap();
 
                 new_parent.map().get_result().expect("Failed to map window");
 
