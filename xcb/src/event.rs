@@ -55,32 +55,33 @@ pub enum Event<'a> {
     Unknown,
 }
 
-#[derive(Copy, Clone)]
-pub enum EventMask {
-    NoEvent = 0,
-    KeyPress = 1,
-    KeyRelease = 2,
-    ButtonPress = 4,
-    ButtonRelease = 8,
-    EnterWindow = 16,
-    LeaveWindow = 32,
-    PointerMotion = 64,
-    PointerMotionHint = 128,
-    Button1Motion = 256,
-    Button2Motion = 512,
-    Button3Motion = 1024,
-    Button4Motion = 2048,
-    Button5Motion = 4096,
-    ButtonMotion = 8192,
-    KeymapState = 16_384,
-    Exposure = 32_768,
-    VisibilityChange = 65_536,
-    StructureNotify = 131_072,
-    ResizeRedirect = 262_144,
-    SubstructureNotify = 524_288,
-    SubstructureRedirect = 1_048_576,
-    FocusChange = 2_097_152,
-    PropertyChange = 4_194_304,
-    ColorMapChange = 8_388_608,
-    OwnerGrabButton = 16_777_216,
+bitflags! {
+    pub struct EventMask : u32 {
+        const NO_EVENT = 0;
+        const KEY_PRESS = 1;
+        const KEY_RELEASE = 2;
+        const BUTTON_PRESS = 4;
+        const BUTTON_RELEASE = 8;
+        const ENTER_WINDOW = 16;
+        const LEAVE_WINDOW = 32;
+        const POINTER_MOTION = 64;
+        const POINTER_MOTION_HINT = 128;
+        const BUTTON_1_MOTION = 256;
+        const BUTTON_2_MOTION = 512;
+        const BUTTON_3_MOTION = 1024;
+        const BUTTON_4_MOTION = 2048;
+        const BUTTON_5_MOTION = 4096;
+        const BUTTON_MOTION = 8192;
+        const KEYMAP_STATE = 16_384;
+        const EXPOSURE = 32_768;
+        const VISIBILITY_CHANGE = 65_536;
+        const STRUCTURE_NOTIFY = 131_072;
+        const RESIZE_REDIRECT = 262_144;
+        const SUBSTRUCTURE_NOTIFY = 524_288;
+        const SUBSTRUCTURE_REDIRECT = 1_048_576;
+        const FOCUS_CHANGE = 2_097_152;
+        const PROPERTY_CHANGE = 4_194_304;
+        const COLOR_MAP_CHANGE = 8_388_608;
+        const OWNER_GRAB_BUTTON = 16_777_216;
+    }
 }

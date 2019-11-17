@@ -1,4 +1,4 @@
-use crate::event::{Event, MouseButton};
+use crate::event::{Event, EventMask, MouseButton};
 use crate::result::{Error, XcbResult};
 use crate::window::{Window, WindowHandle};
 use crate::Rectangle;
@@ -154,8 +154,6 @@ impl Connection {
                 let motion_notify =
                     unsafe { *(event_ptr as *const xcb_system::xcb_motion_notify_event_t) };
 
-                println!("Motion notify: {:?}", motion_notify);
-
                 Event::MotionNotify {
                     window: WindowHandle::new(motion_notify.event, &self),
                     x: motion_notify.root_x,
@@ -218,7 +216,7 @@ impl Connection {
                 self.connection,
                 0,
                 self.get_root_window().unwrap().id(),
-                64 | 8, // todo this is pointer move | button release, use the EventMask enum instead
+                (EventMask::POINTER_MOTION | EventMask::BUTTON_RELEASE).bits() as u16,
                 xcb_system::xcb_grab_mode_t_XCB_GRAB_MODE_ASYNC as u8,
                 xcb_system::xcb_grab_mode_t_XCB_GRAB_MODE_ASYNC as u8,
                 xcb_system::XCB_NONE,

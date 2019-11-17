@@ -18,8 +18,7 @@ pub struct WindowHandle<'a> {
 }
 
 #[derive(Debug, Copy, Clone)]
-// todo rename to just `Attributes`, add fields
-pub struct WindowAttributes {}
+pub struct Attributes {}
 
 #[derive(Debug, Copy, Clone)]
 pub struct Geometry {
@@ -27,11 +26,11 @@ pub struct Geometry {
 }
 
 pub trait Window {
-    fn set_event_mask(&self, events: Vec<EventMask>) -> XcbResult<(), ()>;
+    fn set_event_mask(&self, events: EventMask) -> XcbResult<(), ()>;
     fn map(&self) -> XcbResult<(), ()>;
     fn unmap(&self) -> XcbResult<(), ()>;
     fn configure(&self, rectangle: Rectangle) -> XcbResult<(), ()>;
-    fn get_attributes(&self) -> XcbResult<xcb_get_window_attributes_reply_t, WindowAttributes>;
+    fn get_attributes(&self) -> XcbResult<xcb_get_window_attributes_reply_t, Attributes>;
     fn get_geometry(&self) -> XcbResult<xcb_get_geometry_reply_t, Geometry>;
 
     fn reparent(&self, new_parent: &dyn Window, x_offset: i16, y_offset: i16) -> XcbResult<(), ()>;
@@ -71,7 +70,7 @@ impl<'a> OwnedWindow<'a> {
 }
 
 impl Window for OwnedWindow<'_> {
-    fn set_event_mask(&self, events: Vec<EventMask>) -> XcbResult<(), ()> {
+    fn set_event_mask(&self, events: EventMask) -> XcbResult<(), ()> {
         self.handle.set_event_mask(events)
     }
 
@@ -87,7 +86,7 @@ impl Window for OwnedWindow<'_> {
         self.handle.configure(rectangle)
     }
 
-    fn get_attributes(&self) -> XcbResult<xcb_get_window_attributes_reply_t, WindowAttributes> {
+    fn get_attributes(&self) -> XcbResult<xcb_get_window_attributes_reply_t, Attributes> {
         self.handle.get_attributes()
     }
 
@@ -128,11 +127,8 @@ impl<'a> WindowHandle<'a> {
 }
 
 impl Window for WindowHandle<'_> {
-    fn set_event_mask(&self, events: Vec<EventMask>) -> XcbResult<(), ()> {
-        let mut mask = 0;
-        for e in events {
-            mask |= e as u32;
-        }
+    fn set_event_mask(&self, events: EventMask) -> XcbResult<(), ()> {
+        let mask = events.bits();
 
         unsafe {
             let cookie = xcb_change_window_attributes_checked(
@@ -180,7 +176,7 @@ impl Window for WindowHandle<'_> {
         XcbResult::new_void(result, self.connection)
     }
 
-    fn get_attributes(&self) -> XcbResult<xcb_get_window_attributes_reply_t, WindowAttributes> {
+    fn get_attributes(&self) -> XcbResult<xcb_get_window_attributes_reply_t, Attributes> {
         let cookie = unsafe {
             xcb_system::xcb_get_window_attributes(self.connection.get_connection(), self.handle)
         };
@@ -199,7 +195,7 @@ impl Window for WindowHandle<'_> {
 
                 (reply, error)
             }),
-            Box::new(|_reply| WindowAttributes {}),
+            Box::new(|_reply| Attributes {}),
             self.connection,
         )
     }

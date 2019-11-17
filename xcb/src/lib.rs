@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate bitflags;
+
 pub mod connection;
 pub mod event;
 pub mod result;

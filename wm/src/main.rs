@@ -6,12 +6,12 @@ fn main() {
     let connection = xcb::connection::Connection::new().unwrap();
     let root_window = connection.get_root_window().unwrap();
     root_window
-        .set_event_mask(vec![
-            EventMask::SubstructureNotify,
-            EventMask::SubstructureRedirect,
-            EventMask::ButtonPress,
-            EventMask::ButtonRelease
-        ])
+        .set_event_mask(
+            EventMask::SUBSTRUCTURE_NOTIFY |
+            EventMask::SUBSTRUCTURE_REDIRECT |
+            EventMask::BUTTON_PRESS |
+            EventMask::BUTTON_RELEASE
+        )
         .get_result()
         .expect("Failed to get SubstructureNotify and SubstructureRedirect event masks. Is another WM already running?");
 
@@ -50,10 +50,7 @@ fn main() {
                 new_parent.map().get_result().expect("Failed to map window");
 
                 new_parent
-                    .set_event_mask(vec![
-                        EventMask::SubstructureNotify,
-                        EventMask::SubstructureRedirect,
-                    ])
+                    .set_event_mask(EventMask::SUBSTRUCTURE_NOTIFY | EventMask::SUBSTRUCTURE_REDIRECT)
                     .get_result()
                     .expect("Failed to set event mask during reparenting");
 
@@ -91,10 +88,7 @@ fn main() {
                 move_start = None;
                 move_window = None;
             }
-            Event::MotionNotify { x, y, window } => {
-                println!("Motion notify: {:?}", window);
-                println!("Windows.first: {:?}", windows.first());
-
+            Event::MotionNotify { x, y, .. } => {
                 if let Some((start_x, start_y)) = move_start {
                     let offset = (x - start_x, y - start_y);
                     let parent = &windows
